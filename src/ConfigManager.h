@@ -18,6 +18,15 @@
 #include <list>
 #include "ArduinoJson.h"
 
+#if defined(ARDUINO_ARCH_ESP8266) //ESP8266
+    #define WIFI_OPEN  ENC_TYPE_NONE
+#elif defined(ARDUINO_ARCH_ESP32) //ESP32
+    #define WIFI_OPEN  WIFI_AUTH_OPEN
+#endif
+
+#include "ConfigParameter.h"
+#include "ConfigStringParameter.h"
+
 #define MAGIC_LENGTH 2
 #define SSID_LENGTH 32
 #define PASSWORD_LENGTH 64
@@ -27,11 +36,6 @@
     using WebServer = ESP8266WebServer;
 #endif
 
-extern bool DEBUG_MODE;
-
-#define DebugPrintln(a) (DEBUG_MODE ? Serial.println(a) : false)
-#define DebugPrint(a) (DEBUG_MODE ? Serial.print(a) : false)
-
 extern const char mimeHTML[];
 extern const char mimeJSON[];
 extern const char mimePlain[];
@@ -39,100 +43,6 @@ extern const char mimeCSS[];
 extern const char mimeJS[];
 
 enum Mode {ap, api};
-enum ParameterMode { get, set, both};
-
-/**
- * Base Parameter
- */
-class BaseParameter {
-public:
-    virtual ParameterMode getMode() = 0;
-    virtual void fromJson(JsonObject *json) = 0;
-    virtual void toJson(JsonObject *json) = 0;
-    virtual void clearData() = 0;
-};
-
-/**
- * Config Parameter
- */
-template<typename T>
-class ConfigParameter : public BaseParameter {
-public:
-    ConfigParameter(const char *name, T *ptr, ParameterMode mode = both) {
-        this->name = name;
-        this->ptr = ptr;
-        this->mode = mode;
-    }
-
-    ParameterMode getMode() {
-        return this->mode;
-    }
-
-    void fromJson(JsonObject *json) {
-        if (json->containsKey(name) && json->is<T>(name)) {
-            *ptr = json->get<T>(name);
-        }
-    }
-
-    void toJson(JsonObject *json) {
-        json->set(name, *ptr);
-    }
-
-    void clearData() {
-        DebugPrint("Clearing: ");
-        DebugPrintln(name);
-        *ptr = T();
-    }
-
-private:
-    const char *name;
-    T *ptr;
-    std::function<void(const char*)> cb;
-    ParameterMode mode;
-};
-
-/**
- * Config String Parameter
- */
-class ConfigStringParameter : public BaseParameter {
-public:
-    ConfigStringParameter(const char *name, char *ptr, size_t length, ParameterMode mode = both) {
-        this->name = name;
-        this->ptr = ptr;
-        this->length = length;
-        this->mode = mode;
-    }
-
-    ParameterMode getMode() {
-        return this->mode;
-    }
-
-    void fromJson(JsonObject *json) {
-        if (json->containsKey(name) && json->is<char *>(name)) {
-            const char * value = json->get<const char *>(name);
-
-            memset(ptr, NULL, length);
-            strncpy(ptr, const_cast<char*>(value), length - 1);
-        }
-    }
-
-    void toJson(JsonObject *json) {
-        json->set(name, ptr);
-    }
-
-    void clearData() {
-        DebugPrint("Clearing: ");
-        DebugPrintln(name);
-        memset(ptr, NULL, length);
-    }
-    
-
-private:
-    const char *name;
-    char *ptr;
-    size_t length;
-    ParameterMode mode;
-};
 
 /**
  * Config Manager
